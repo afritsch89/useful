@@ -7,6 +7,13 @@ BEGIN TRANSACTION;
 DECLARE @auditLogLocation NVARCHAR(500) = N'C:\AuditLogs';
 DECLARE @destinationPath NVARCHAR(500) = N'\\RemoteServer\AuditLogs';
 
+-- Get the name of the active audit log file.
+DECLARE @activeAuditLogName NVARCHAR(500);
+SELECT TOP 1 @activeAuditLogName = audit_file_path
+FROM sys.dm_server_audit_status
+WHERE audit_file_path IS NOT NULL
+ORDER BY audit_start_time DESC;
+
 -- Create a new SQL Server Agent job.
 DECLARE @jobId BINARY(16);
 EXEC msdb.dbo.sp_add_job
@@ -20,7 +27,7 @@ EXEC msdb.dbo.sp_add_jobstep
   @job_id = @jobId,
   @step_name = N'Compress Logs',
   @subsystem = N'CmdExec',
-  @command = N'powershell.exe Compress-Archive -Path "' + @auditLogLocation + '\*" -DestinationPath "' + @auditLogLocation + '\Archive.zip"',
+  @command = N'powershell.exe Compress-Archive -Path "' + @auditLogLocation + '\*" -DestinationPath "' + @auditLogLocation + '\Archive.zip" -Exclude "' + @activeAuditLogName + '"',
   @on_success_action = 1,
   @retry_attempts = 0,
   @retry_interval = 0;
